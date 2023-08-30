@@ -1,13 +1,10 @@
 const chat = document.getElementById("chat");
 const msgs = document.getElementById("msgs");
 
-// let's store all current messages here
 let allChat = [];
 
-// the interval to poll at in milliseconds
 const INTERVAL = 3000;
 
-// a submit listener on the form in the HTML
 chat.addEventListener("submit", function (e) {
   e.preventDefault();
   postNewMsg(chat.elements.user.value, chat.elements.text.value);
@@ -15,13 +12,44 @@ chat.addEventListener("submit", function (e) {
 });
 
 async function postNewMsg(user, text) {
-  // post to /poll a new message
-  // write code here
+  const data = {
+    user,
+    text,
+  };
+
+  const options = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data),
+  };
+
+  await fetch('/poll', options);
 }
 
 async function getNewMsgs() {
-  // poll the server
-  // write code here
+  try {
+    const res = await fetch('/poll');
+
+    if (res.status >= 400) {
+      throw new error('request didn\'t succeed ' + res.status);
+    }
+
+    const json = await res.json();
+
+    allChat = json.msg;
+    render();
+
+    failedTries = 0;
+  } catch (error) {
+    console.error('Polling error', error);
+    failedTries++;
+  }
+  // with timeout
+  // setTimeout(getNewMsgs, INTERVAL);
+  // allChat = json.msg;
+  // render();
 }
 
 function render() {
@@ -33,9 +61,21 @@ function render() {
   msgs.innerHTML = html.join("\n");
 }
 
-// given a user and a msg, it returns an HTML string to render to the UI
-const template = (user, msg) =>
-  `<li class="collection-item"><span class="badge">${user}</span>${msg}</li>`;
+const template = (user, msg) => `<li class="collection-item"><span class="badge">${user}</span>${msg}</li>`;
 
-// make the first request
-getNewMsgs();
+// with timeout
+// getNewMsgs();
+
+const BACKOFF = 5000;
+let timeToMakeNextRequest = 0;
+let failedTries = 0;
+async function rafTimer(time) {
+  if (timeToMakeNextRequest <= time) {
+    await getNewMsgs();
+    timeToMakeNextRequest = time + INTERVAL + failedTries * BACKOFF;
+  }
+
+  requestAnimationFrame(rafTimer);
+}
+
+requestAnimationFrame(rafTimer);
